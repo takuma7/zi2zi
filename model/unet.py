@@ -11,17 +11,25 @@ from .utils import scale_back, merge, save_concat_images
 
 # Auxiliary wrapper classes
 # Used to save handles(important nodes in computation graph) for later evaluation
-LossHandle = namedtuple("LossHandle", ["d_loss", "g_loss", "const_loss", "l1_loss",
-                                       "category_loss", "cheat_loss", "tv_loss"])
+LossHandle = namedtuple("LossHandle", ["d_loss", "g_loss", "const_loss",
+                                       "l1_loss", "category_loss",
+                                       "cheat_loss", "tv_loss"])
 InputHandle = namedtuple("InputHandle", ["real_data", "embedding_ids"])
-EvalHandle = namedtuple("EvalHandle", ["encoder", "generator", "target", "source", "embedding"])
+EvalHandle = namedtuple("EvalHandle", ["encoder", "generator", "target",
+                                       "source", "embedding"])
 SummaryHandle = namedtuple("SummaryHandle", ["d_merged", "g_merged"])
 
 
 class UNet(object):
-    def __init__(self, experiment_dir=None, experiment_id=0, batch_size=16, input_width=256, output_width=256,
-                 generator_dim=64, discriminator_dim=64, L1_penalty=100, Lconst_penalty=15, Ltv_penalty=0.0,
-                 embedding_num=40, embedding_dim=128, input_filters=3, output_filters=3):
+    # set parameters and create experiment_dir
+    def __init__(self,
+                 experiment_dir=None, experiment_id=0,
+                 batch_size=16,
+                 input_width=256, output_width=256,
+                 generator_dim=64, discriminator_dim=64,
+                 L1_penalty=100, Lconst_penalty=15, Ltv_penalty=0.0,
+                 embedding_num=40, embedding_dim=128,
+                 input_filters=3, output_filters=3):
         self.experiment_dir = experiment_dir
         self.experiment_id = experiment_id
         self.batch_size = batch_size
@@ -64,8 +72,12 @@ class UNet(object):
 
             def encode_layer(x, output_filters, layer):
                 act = lrelu(x)
-                conv = conv2d(act, output_filters=output_filters, scope="g_e%d_conv" % layer)
-                enc = batch_norm(conv, is_training, scope="g_e%d_bn" % layer)
+                conv = conv2d(act,
+                              output_filters=output_filters,
+                              scope="g_e%d_conv" % layer)
+                enc = batch_norm(conv,
+                                 is_training,
+                                 scope="g_e%d_bn" % layer)
                 encode_layers["e%d" % layer] = enc
                 return enc
 
@@ -90,9 +102,11 @@ class UNet(object):
             s2, s4, s8, s16, s32, s64, s128 = int(s / 2), int(s / 4), int(s / 8), int(s / 16), int(s / 32), int(
                 s / 64), int(s / 128)
 
-            def decode_layer(x, output_width, output_filters, layer, enc_layer, dropout=False, do_concat=True):
-                dec = deconv2d(tf.nn.relu(x), [self.batch_size, output_width,
-                                               output_width, output_filters], scope="g_d%d_deconv" % layer)
+            def decode_layer(x, output_width, output_filters,
+                             layer, enc_layer, dropout=False, do_concat=True):
+                dec = deconv2d(tf.nn.relu(x),
+                               [self.batch_size, output_width, output_width, output_filters],
+                               scope="g_d%d_deconv" % layer)
                 if layer != 8:
                     # IMPORTANT: normalization for last layer
                     # Very important, otherwise GAN is unstable
@@ -109,15 +123,22 @@ class UNet(object):
                     dec = tf.concat([dec, enc_layer], 3)
                 return dec
 
-            d1 = decode_layer(encoded, s128, self.generator_dim * 8, layer=1, enc_layer=encoding_layers["e7"],
-                              dropout=True)
-            d2 = decode_layer(d1, s64, self.generator_dim * 8, layer=2, enc_layer=encoding_layers["e6"], dropout=True)
-            d3 = decode_layer(d2, s32, self.generator_dim * 8, layer=3, enc_layer=encoding_layers["e5"], dropout=True)
-            d4 = decode_layer(d3, s16, self.generator_dim * 8, layer=4, enc_layer=encoding_layers["e4"])
-            d5 = decode_layer(d4, s8, self.generator_dim * 4, layer=5, enc_layer=encoding_layers["e3"])
-            d6 = decode_layer(d5, s4, self.generator_dim * 2, layer=6, enc_layer=encoding_layers["e2"])
-            d7 = decode_layer(d6, s2, self.generator_dim, layer=7, enc_layer=encoding_layers["e1"])
-            d8 = decode_layer(d7, s, self.output_filters, layer=8, enc_layer=None, do_concat=False)
+            d1 = decode_layer(encoded, s128, self.generator_dim * 8, layer=1,
+                              enc_layer=encoding_layers["e7"], dropout=True)
+            d2 = decode_layer(d1, s64, self.generator_dim * 8, layer=2,
+                              enc_layer=encoding_layers["e6"], dropout=True)
+            d3 = decode_layer(d2, s32, self.generator_dim * 8, layer=3,
+                              enc_layer=encoding_layers["e5"], dropout=True)
+            d4 = decode_layer(d3, s16, self.generator_dim * 8, layer=4,
+                              enc_layer=encoding_layers["e4"])
+            d5 = decode_layer(d4, s8, self.generator_dim * 4, layer=5,
+                              enc_layer=encoding_layers["e3"])
+            d6 = decode_layer(d5, s4, self.generator_dim * 2, layer=6,
+                              enc_layer=encoding_layers["e2"])
+            d7 = decode_layer(d6, s2, self.generator_dim, layer=7,
+                              enc_layer=encoding_layers["e1"])
+            d8 = decode_layer(d7, s, self.output_filters, layer=8,
+                              enc_layer=None, do_concat=False)
 
             output = tf.nn.tanh(d8)  # scale to (-1, 1)
             return output
@@ -135,41 +156,62 @@ class UNet(object):
             if reuse:
                 tf.get_variable_scope().reuse_variables()
             h0 = lrelu(conv2d(image, self.discriminator_dim, scope="d_h0_conv"))
-            h1 = lrelu(batch_norm(conv2d(h0, self.discriminator_dim * 2, scope="d_h1_conv"),
+            h1 = lrelu(batch_norm(conv2d(h0, self.discriminator_dim * 2,
+                                         scope="d_h1_conv"),
                                   is_training, scope="d_bn_1"))
-            h2 = lrelu(batch_norm(conv2d(h1, self.discriminator_dim * 4, scope="d_h2_conv"),
+            h2 = lrelu(batch_norm(conv2d(h1, self.discriminator_dim * 4,
+                                         scope="d_h2_conv"),
                                   is_training, scope="d_bn_2"))
-            h3 = lrelu(batch_norm(conv2d(h2, self.discriminator_dim * 8, sh=1, sw=1, scope="d_h3_conv"),
+            h3 = lrelu(batch_norm(conv2d(h2, self.discriminator_dim * 8,
+                                         sh=1, sw=1, scope="d_h3_conv"),
                                   is_training, scope="d_bn_3"))
             # real or fake binary loss
-            fc1 = fc(tf.reshape(h3, [self.batch_size, -1]), 1, scope="d_fc1")
+            fc1 = fc(tf.reshape(h3, [self.batch_size, -1]),
+                     1,
+                     scope="d_fc1")
             # category loss
-            fc2 = fc(tf.reshape(h3, [self.batch_size, -1]), self.embedding_num, scope="d_fc2")
+            fc2 = fc(tf.reshape(h3, [self.batch_size, -1]),
+                     self.embedding_num,
+                     scope="d_fc2")
 
             return tf.nn.sigmoid(fc1), fc1, fc2
 
     def build_model(self, is_training=True, inst_norm=False):
         real_data = tf.placeholder(tf.float32,
-                                   [self.batch_size, self.input_width, self.input_width,
-                                    self.input_filters + self.output_filters],
-                                   name='real_A_and_B_images')
-        embedding_ids = tf.placeholder(tf.int64, shape=None, name="embedding_ids")
+                                  [
+                                    self.batch_size,
+                                    self.input_width,
+                                    self.input_width,
+                                    self.input_filters + self.output_filters
+                                  ],
+                                  name='real_A_and_B_images')
+        embedding_ids = tf.placeholder(tf.int64,
+                                       shape=None,
+                                       name="embedding_ids")
         # target images
         real_B = real_data[:, :, :, :self.input_filters]
         # source images
         real_A = real_data[:, :, :, self.input_filters:self.input_filters + self.output_filters]
 
         embedding = init_embedding(self.embedding_num, self.embedding_dim)
-        fake_B, encoded_real_B = self.generator(real_A, embedding, embedding_ids, is_training=is_training,
+        fake_B, encoded_real_B = self.generator(real_A,
+                                                embedding,
+                                                embedding_ids,
+                                                is_training=is_training,
                                                 inst_norm=inst_norm)
         real_AB = tf.concat([real_A, real_B], 3)
         fake_AB = tf.concat([real_A, fake_B], 3)
 
         # Note it is not possible to set reuse flag back to False
         # initialize all variables before setting reuse to True
-        real_D, real_D_logits, real_category_logits = self.discriminator(real_AB, is_training=is_training, reuse=False)
-        fake_D, fake_D_logits, fake_category_logits = self.discriminator(fake_AB, is_training=is_training, reuse=True)
-
+        real_D, real_D_logits, real_category_logits = self.discriminator(
+                                                        real_AB,
+                                                        is_training=is_training,
+                                                        reuse=False)
+        fake_D, fake_D_logits, fake_category_logits = self.discriminator(
+                                                        fake_AB,
+                                                        is_training=is_training,
+                                                        reuse=True)
         # encoding constant loss
         # this loss assume that generated imaged and real image
         # should reside in the same space and close to each other
@@ -177,51 +219,75 @@ class UNet(object):
         const_loss = tf.reduce_mean(tf.square(encoded_real_B - encoded_fake_B)) * self.Lconst_penalty
 
         # category loss
-        true_labels = tf.reshape(tf.one_hot(indices=embedding_ids, depth=self.embedding_num),
-                                 shape=[self.batch_size, self.embedding_num])
-        real_category_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=real_category_logits,
-                                                                                    labels=true_labels))
-        fake_category_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_category_logits,
-                                                                                    labels=true_labels))
+        true_labels = tf.reshape(
+                tf.one_hot(indices=embedding_ids, depth=self.embedding_num),
+                shape=[self.batch_size, self.embedding_num]
+            )
+        real_category_loss = tf.reduce_mean(
+                tf.nn.sigmoid_cross_entropy_with_logits(
+                    logits=real_category_logits,
+                    labels=true_labels)
+            )
+        fake_category_loss = tf.reduce_mean(
+                tf.nn.sigmoid_cross_entropy_with_logits(
+                    logits=fake_category_logits,
+                    labels=true_labels)
+            )
         category_loss = (real_category_loss + fake_category_loss) / 2.0
 
         # binary real/fake loss
-        d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=real_D_logits,
-                                                                             labels=tf.ones_like(real_D)))
-        d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_D_logits,
-                                                                             labels=tf.zeros_like(fake_D)))
+        d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+                                        logits=real_D_logits,
+                                        labels=tf.ones_like(real_D)))
+        d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+                                        logits=fake_D_logits,
+                                        labels=tf.zeros_like(fake_D)))
 
         # L1 loss between real and generated images
         l1_loss = self.L1_penalty * tf.reduce_mean(tf.abs(fake_B - real_B))
         # total variation loss
         width = self.output_width
-        tv_loss = (tf.nn.l2_loss(fake_B[:, 1:, :, :] - fake_B[:, :width - 1, :, :]) / width
-                   + tf.nn.l2_loss(fake_B[:, :, 1:, :] - fake_B[:, :, :width - 1, :]) / width) * self.Ltv_penalty
+        tv_loss = (tf.nn.l2_loss(
+                        fake_B[:, 1:, :, :] - fake_B[:, :width - 1, :, :]
+                    ) / width
+                   + tf.nn.l2_loss(
+                        fake_B[:, :, 1:, :] - fake_B[:, :, :width - 1, :]
+                    ) / width
+                ) * self.Ltv_penalty
 
         # maximize the chance generator fool the discriminator
-        cheat_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_D_logits,
-                                                                            labels=tf.ones_like(fake_D)))
+        cheat_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+                                        logits=fake_D_logits,
+                                        labels=tf.ones_like(fake_D)))
 
         d_loss = d_loss_real + d_loss_fake + category_loss
         g_loss = cheat_loss + l1_loss + fake_category_loss + const_loss
 
         d_loss_real_summary = tf.summary.scalar("d_loss_real", d_loss_real)
         d_loss_fake_summary = tf.summary.scalar("d_loss_fake", d_loss_fake)
-        category_loss_summary = tf.summary.scalar("category_loss", category_loss)
-        cheat_loss_summary = tf.summary.scalar("cheat_loss", cheat_loss)
-        l1_loss_summary = tf.summary.scalar("l1_loss", l1_loss)
-        fake_category_loss_summary = tf.summary.scalar("fake_category_loss", fake_category_loss)
-        const_loss_summary = tf.summary.scalar("const_loss", const_loss)
-        d_loss_summary = tf.summary.scalar("d_loss", d_loss)
-        g_loss_summary = tf.summary.scalar("g_loss", g_loss)
-        tv_loss_summary = tf.summary.scalar("tv_loss", tv_loss)
+        category_loss_summary = tf.summary.scalar("category_loss",
+                                                  category_loss)
+        cheat_loss_summary  = tf.summary.scalar("cheat_loss", cheat_loss)
+        l1_loss_summary     = tf.summary.scalar("l1_loss", l1_loss)
+        fake_category_loss_summary = tf.summary.scalar("fake_category_loss",
+                                                       fake_category_loss)
+        const_loss_summary  = tf.summary.scalar("const_loss", const_loss)
+        d_loss_summary      = tf.summary.scalar("d_loss", d_loss)
+        g_loss_summary      = tf.summary.scalar("g_loss", g_loss)
+        tv_loss_summary     = tf.summary.scalar("tv_loss", tv_loss)
 
-        d_merged_summary = tf.summary.merge([d_loss_real_summary, d_loss_fake_summary,
-                                             category_loss_summary, d_loss_summary])
-        g_merged_summary = tf.summary.merge([cheat_loss_summary, l1_loss_summary,
-                                             fake_category_loss_summary,
-                                             const_loss_summary,
-                                             g_loss_summary, tv_loss_summary])
+        d_merged_summary = tf.summary.merge([
+                                d_loss_real_summary,
+                                d_loss_fake_summary,
+                                category_loss_summary,
+                                d_loss_summary])
+        g_merged_summary = tf.summary.merge([
+                                cheat_loss_summary,
+                                l1_loss_summary,
+                                fake_category_loss_summary,
+                                const_loss_summary,
+                                g_loss_summary,
+                                tv_loss_summary])
 
         # expose useful nodes in the graph as handles globally
         input_handle = InputHandle(real_data=real_data,
@@ -305,7 +371,9 @@ class UNet(object):
             print("fail to restore model %s" % model_dir)
 
     def generate_fake_samples(self, input_images, embedding_ids):
-        input_handle, loss_handle, eval_handle, summary_handle = self.retrieve_handles()
+        input_handle, loss_handle, \
+        eval_handle, summary_handle = self.retrieve_handles()
+
         fake_images, real_images, \
         d_loss, g_loss, l1_loss = self.sess.run([eval_handle.generator,
                                                  eval_handle.target,
@@ -449,7 +517,8 @@ class UNet(object):
             self.sess.run(op)
 
     def train(self, lr=0.0002, epoch=100, schedule=10, resume=True,
-              freeze_encoder=False, fine_tune=None, sample_steps=50, checkpoint_steps=500):
+              freeze_encoder=False, fine_tune=None, sample_steps=50,
+              checkpoint_steps=500):
         g_vars, d_vars = self.retrieve_trainable_vars(freeze_encoder=freeze_encoder)
         input_handle, loss_handle, _, summary_handle = self.retrieve_handles()
 
@@ -492,40 +561,48 @@ class UNet(object):
                 counter += 1
                 labels, batch_images = batch
                 # Optimize D
-                _, batch_d_loss, d_summary = self.sess.run([d_optimizer, loss_handle.d_loss,
-                                                            summary_handle.d_merged],
-                                                           feed_dict={
-                                                               real_data: batch_images,
-                                                               embedding_ids: labels,
-                                                               learning_rate: current_lr
-                                                           })
+                _, batch_d_loss, d_summary = self.sess.run([
+                        d_optimizer,
+                        loss_handle.d_loss,
+                        summary_handle.d_merged
+                    ],
+                    feed_dict={
+                        real_data: batch_images,
+                        embedding_ids: labels,
+                        learning_rate: current_lr
+                    })
                 # Optimize G
-                _, batch_g_loss = self.sess.run([g_optimizer, loss_handle.g_loss],
-                                                feed_dict={
-                                                    real_data: batch_images,
-                                                    embedding_ids: labels,
-                                                    learning_rate: current_lr
-                                                })
+                _, batch_g_loss = self.sess.run([
+                        g_optimizer,
+                        loss_handle.g_loss
+                    ],
+                    feed_dict={
+                        real_data: batch_images,
+                        embedding_ids: labels,
+                        learning_rate: current_lr
+                    })
                 # magic move to Optimize G again
                 # according to https://github.com/carpedm20/DCGAN-tensorflow
                 # collect all the losses along the way
                 _, batch_g_loss, category_loss, cheat_loss, \
-                const_loss, l1_loss, tv_loss, g_summary = self.sess.run([g_optimizer,
-                                                                         loss_handle.g_loss,
-                                                                         loss_handle.category_loss,
-                                                                         loss_handle.cheat_loss,
-                                                                         loss_handle.const_loss,
-                                                                         loss_handle.l1_loss,
-                                                                         loss_handle.tv_loss,
-                                                                         summary_handle.g_merged],
-                                                                        feed_dict={
-                                                                            real_data: batch_images,
-                                                                            embedding_ids: labels,
-                                                                            learning_rate: current_lr
-                                                                        })
+                const_loss, l1_loss, tv_loss, g_summary = self.sess.run([
+                        g_optimizer,
+                        loss_handle.g_loss,
+                        loss_handle.category_loss,
+                        loss_handle.cheat_loss,
+                        loss_handle.const_loss,
+                        loss_handle.l1_loss,
+                        loss_handle.tv_loss,
+                        summary_handle.g_merged
+                    ],
+                    feed_dict={
+                        real_data: batch_images,
+                        embedding_ids: labels,
+                        learning_rate: current_lr
+                    })
                 passed = time.time() - start_time
                 log_format = "Epoch: [%2d], [%4d/%4d] time: %4.4f, d_loss: %.5f, g_loss: %.5f, " + \
-                             "category_loss: %.5f, cheat_loss: %.5f, const_loss: %.5f, l1_loss: %.5f, tv_loss: %.5f"
+                "category_loss: %.5f, cheat_loss: %.5f, const_loss: %.5f, l1_loss: %.5f, tv_loss: %.5f"
                 print(log_format % (ei, bid, total_batches, passed, batch_d_loss, batch_g_loss,
                                     category_loss, cheat_loss, const_loss, l1_loss, tv_loss))
                 summary_writer.add_summary(d_summary, counter)
